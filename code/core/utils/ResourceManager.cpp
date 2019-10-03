@@ -21,7 +21,7 @@ Shader ResourceManager::LoadShader(const char *vertexPath, const char *fragmentP
 	return Shaders[name];
 }
 
-Shader ResourceManager::GetShader(const std::string &name)
+Shader &ResourceManager::GetShader(const std::string &name)
 {
 	return Shaders[name];
 }
@@ -32,7 +32,7 @@ Texture2D ResourceManager::LoadTexture(const char *filepath, bool alpha, const s
 	return Textures[name];
 }
 
-Texture2D ResourceManager::GetTexture(const std::string &name)
+Texture2D &ResourceManager::GetTexture(const std::string &name)
 {
 	return Textures[name];
 }

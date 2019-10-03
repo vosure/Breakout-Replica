@@ -3,6 +3,9 @@
 #include "GL/glew.h"
 #include "GLFW/glfw3.h"
 
+#include "utils/ResourceManager.h"
+#include "renderer/SpriteRenderer.h"
+
 enum class GameState
 {
 	GAME_ACTIVE, 
