@@ -1,12 +1,18 @@
 #pragma once
 
 #include "GL/glew.h"
+#include <stb_image.h>
 
 #include "../renderer/Shader.h"
 #include "../renderer/Texture.h"
 
 #include <map>
+
 #include <string>
+
+#include <iostream>
+#include <sstream>
+#include <fstream>
 
 class ResourceManager
 {
