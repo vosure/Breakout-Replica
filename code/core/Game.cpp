@@ -3,6 +3,7 @@
 SpriteRenderer *Renderer;
 GameObject *Paddle;
 Ball *BallObject;
+ParticleGenerator *ParticleGen;
 
 Game::Game(unsigned int width, unsigned int height)
 	: State(GameState::GAME_ACTIVE), Keys(), Width(width), Height(height)
@@ -13,24 +14,33 @@ Game::~Game()
 {
 	delete Renderer;
 	delete Paddle;
+	delete BallObject;
+	delete ParticleGen;
 }
 
 void Game::Init()
 {
 	ResourceManager::LoadShader("resources/shaders/spriteShader.vert", "resources/shaders/spriteShader.frag", nullptr, "sprite");
 
+	ResourceManager::LoadShader("resources/shaders/particleShader.vert", "resources/shaders/particleShader.frag", nullptr, "particle");
+
 	glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(Width), static_cast<float>(Height), 0.0f, -1.0f, 1.0f);
 
 	ResourceManager::GetShader("sprite").Use().SetInt("image", 0);
 	ResourceManager::GetShader("sprite").SetMat4("projection", projection);
 
-	ResourceManager::LoadTexture("resources/textures/background2.jpg", GL_FALSE, "background");
-	ResourceManager::LoadTexture("resources/textures/roflan.png", GL_TRUE, "ball");
-	ResourceManager::LoadTexture("resources/textures/block.png", GL_FALSE, "block");
-	ResourceManager::LoadTexture("resources/textures/block_solid.png", GL_FALSE, "block_solid");
+	ResourceManager::GetShader("particle").Use().SetInt("image", 0);
+	ResourceManager::GetShader("particle").SetMat4("projection", projection);
+
+	ResourceManager::LoadTexture("resources/textures/background2.jpg", false, "background");
+	ResourceManager::LoadTexture("resources/textures/roflan.png", true, "ball");
+	ResourceManager::LoadTexture("resources/textures/block.png", false, "block");
+	ResourceManager::LoadTexture("resources/textures/block_solid.png", false, "block_solid");
 	ResourceManager::LoadTexture("resources/textures/paddle.png", true, "paddle");
+	ResourceManager::LoadTexture("resources/textures/particle2.png", true, "particle");
 
 	Renderer = new SpriteRenderer(ResourceManager::GetShader("sprite"));
+	ParticleGen = new ParticleGenerator(ResourceManager::GetShader("particle"), ResourceManager::GetTexture("particle"), 1000);
 
 	GameLevel one; 
 	GameLevel two; 
@@ -47,7 +57,7 @@ void Game::Init()
 	Levels.push_back(three);
 	Levels.push_back(four);
 
-	CurrentLevel = 0;
+	CurrentLevel = 2;
 
 	glm::vec2 paddlePosition = glm::vec2(Width / 2 - PADDLE_SIZE.x / 2, Height - PADDLE_SIZE.y);
 	Paddle = new GameObject(paddlePosition, PADDLE_SIZE, ResourceManager::GetTexture("paddle"));
@@ -61,7 +71,7 @@ void Game::ProcessInput(float deltaTime)
 	if (State == GameState::GAME_ACTIVE)
 	{
 		GLfloat velocity = PADDLE_VELOCITY * deltaTime;
-		// Move playerboard
+
 		if (Keys[GLFW_KEY_A])
 		{
 			if (Paddle->Position.x >= 0)
@@ -93,7 +103,9 @@ void Game::Update(float deltaTime)
 
 	OnCollisionEnter();
 
-	if (BallObject->Position.y >= Height) // Did ball reach bottom edge?
+	ParticleGen->Update(deltaTime, *BallObject, 2, glm::vec2(BallObject->Radius / 2));
+
+	if (BallObject->Position.y >= Height)
 	{
 		this->ResetLevel();
 		this->ResetPaddle();
@@ -109,6 +121,8 @@ void Game::Render()
 		Levels[CurrentLevel].Draw(*Renderer);
 		
 		Paddle->Draw(*Renderer);
+
+		ParticleGen->Draw();
 
 		BallObject->Draw(*Renderer);
 	}
@@ -140,9 +154,9 @@ Collision Game::CheckCollision(Ball obj1, GameObject obj2)
 	difference = closest - centerPoint;
 
 	if (glm::length(difference) < obj1.Radius) 
-		return std::make_tuple(GL_TRUE, GetDirection(difference), difference);
+		return std::make_tuple(true, GetDirection(difference), difference);
 	else
-		return std::make_tuple(GL_FALSE, MoveDirection::UP, glm::vec2(0, 0));
+		return std::make_tuple(false, MoveDirection::UP, glm::vec2(0, 0));
 }
 
 void Game::OnCollisionEnter()
@@ -154,48 +168,44 @@ void Game::OnCollisionEnter()
 			Collision collision = CheckCollision(*BallObject, brick);
 			if (std::get<0>(collision)) 
 			{
-				// Destroy block if not solid
 				if (!brick.IsSolid)
-					brick.IsDestroyed = GL_TRUE;
-				// Collision resolution
-				MoveDirection dir = std::get<1>(collision);
+					brick.IsDestroyed = true;
+
+				MoveDirection direction = std::get<1>(collision);
 				glm::vec2 diff_vector = std::get<2>(collision);
-				if (dir == MoveDirection::LEFT || dir == MoveDirection::RIGHT) // Horizontal collision
+				if (direction == MoveDirection::LEFT || direction == MoveDirection::RIGHT) 
 				{
-					BallObject->Velocity.x = -BallObject->Velocity.x; // Reverse horizontal velocity
-					// Relocate
+					BallObject->Velocity.x = -BallObject->Velocity.x; 
 					GLfloat penetration = BallObject->Radius - std::abs(diff_vector.x);
-					if (dir == MoveDirection::LEFT)
-						BallObject->Position.x += penetration; // Move ball to right
+					if (direction == MoveDirection::LEFT)
+						BallObject->Position.x += penetration; 
 					else
-						BallObject->Position.x -= penetration; // Move ball to left;
+						BallObject->Position.x -= penetration; 
 				}
-				else // Vertical collision
+				else 
 				{
-					BallObject->Velocity.y = -BallObject->Velocity.y; // Reverse vertical velocity
-					// Relocate
-					GLfloat penetration = BallObject->Radius - std::abs(diff_vector.y);
-					if (dir == MoveDirection::UP)
-						BallObject->Position.y -= penetration; // Move ball bback up
+					BallObject->Velocity.y = -BallObject->Velocity.y; 
+					float penetration = BallObject->Radius - std::abs(diff_vector.y);
+
+					if (direction == MoveDirection::UP)
+						BallObject->Position.y -= penetration; 
 					else
-						BallObject->Position.y += penetration; // Move ball back down
+						BallObject->Position.y += penetration; 
 				}
 			}
 
 			Collision result = CheckCollision(*BallObject, *Paddle);
 			if (!BallObject->IsStuck && std::get<0>(result))
 			{
-				// Check where it hit the board, and change velocity based on where it hit the board
-				GLfloat centerBoard = Paddle->Position.x + Paddle->Size.x / 2;
-				GLfloat distance = (BallObject->Position.x + BallObject->Radius) - centerBoard;
-				GLfloat percentage = distance / (Paddle->Size.x / 2);
-				// Then move accordingly
-				GLfloat strength = 2.0f;
+				float centerBoard = Paddle->Position.x + Paddle->Size.x / 2;
+				float distance = (BallObject->Position.x + BallObject->Radius) - centerBoard;
+				float percentage = distance / (Paddle->Size.x / 2);
+				
+				float strength = 2.0f;
 				glm::vec2 oldVelocity = BallObject->Velocity;
 				BallObject->Velocity.x = BALL_VELOCITY.x * percentage * strength;
-				//Ball->Velocity.y = -Ball->Velocity.y;
-				BallObject->Velocity = glm::normalize(BallObject->Velocity) * glm::length(oldVelocity); // Keep speed consistent over both axes (multiply by length of old velocity, so total strength is not changed)
-				// Fix sticky paddle
+				BallObject->Velocity = glm::normalize(BallObject->Velocity) * glm::length(oldVelocity); 
+				
 				BallObject->Velocity.y = -1 * abs(BallObject->Velocity.y);
 			}
 		}
@@ -217,7 +227,7 @@ void Game::ResetLevel()
 void Game::ResetPaddle()
 {
 	Paddle->Size = PADDLE_SIZE;
-	Paddle->Position = glm::vec2(this->Width / 2 - PADDLE_SIZE.x / 2, Height - PADDLE_SIZE.y);
+	Paddle->Position = glm::vec2(Width / 2 - PADDLE_SIZE.x / 2, Height - PADDLE_SIZE.y);
 	BallObject->Reset(Paddle->Position + glm::vec2(PADDLE_SIZE.x / 2 - BALL_RADIUS, -(BALL_RADIUS * 2)), BALL_VELOCITY);
 }
 
@@ -230,15 +240,15 @@ MoveDirection Game::GetDirection(glm::vec2 target)
 	  glm::vec2(-1.0f, 0.0f)
 	};
 
-	GLfloat max = 0.0f;
-	GLuint bestMatch = -1;
+	float max = 0.0f;
+	unsigned int bestMatch = -1;
 
-	for (GLuint i = 0; i < 4; i++)
+	for (unsigned int i = 0; i < 4; i++)
 	{
-		GLfloat dot_product = glm::dot(glm::normalize(target), directions[i]);
-		if (dot_product > max)
+		float dotProduct = glm::dot(glm::normalize(target), directions[i]);
+		if (dotProduct > max)
 		{
-			max = dot_product;
+			max = dotProduct;
 			bestMatch = i;
 		}
 	}

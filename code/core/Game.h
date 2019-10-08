@@ -4,6 +4,7 @@
 #include "GLFW/glfw3.h"
 
 #include "level/GameLevel.h"
+#include "particles/ParticleGenerator.h"
 #include "renderer/Ball.h"
 
 #include <vector>
