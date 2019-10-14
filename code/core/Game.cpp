@@ -1,9 +1,11 @@
 #include "Game.h"
 
+PostProcessor *Effects;
 SpriteRenderer *Renderer;
 GameObject *Paddle;
 Ball *BallObject;
 ParticleGenerator *ParticleGen;
+float ShakeTime = 0.0f;
 
 Game::Game(unsigned int width, unsigned int height)
 	: State(GameState::GAME_ACTIVE), Keys(), Width(width), Height(height)
@@ -16,6 +18,7 @@ Game::~Game()
 	delete Paddle;
 	delete BallObject;
 	delete ParticleGen;
+	delete Effects;
 }
 
 void Game::Init()
@@ -23,6 +26,8 @@ void Game::Init()
 	ResourceManager::LoadShader("resources/shaders/spriteShader.vert", "resources/shaders/spriteShader.frag", nullptr, "sprite");
 
 	ResourceManager::LoadShader("resources/shaders/particleShader.vert", "resources/shaders/particleShader.frag", nullptr, "particle");
+
+	ResourceManager::LoadShader("resources/shaders/postProcessingShader.vert", "resources/shaders/postProcessingShader.frag", nullptr, "postProcessing");
 
 	glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(Width), static_cast<float>(Height), 0.0f, -1.0f, 1.0f);
 
@@ -41,12 +46,15 @@ void Game::Init()
 
 	Renderer = new SpriteRenderer(ResourceManager::GetShader("sprite"));
 	ParticleGen = new ParticleGenerator(ResourceManager::GetShader("particle"), ResourceManager::GetTexture("particle"), 1000);
+	Effects = new PostProcessor(ResourceManager::GetShader("postProcessing"), Width, Height);
+	Effects->Print();
 
-	GameLevel one; 
-	GameLevel two; 
-	GameLevel three; 
-	GameLevel four; 
-	
+
+	GameLevel one;
+	GameLevel two;
+	GameLevel three;
+	GameLevel four;
+
 	one.Load("resources/levels/one.lvl", Width, Height * 0.5);
 	two.Load("resources/levels/two.lvl", Width, Height * 0.5);
 	three.Load("resources/levels/three.lvl", Width, Height * 0.5);
@@ -85,7 +93,7 @@ void Game::ProcessInput(float deltaTime)
 		{
 			if (Paddle->Position.x <= Width - Paddle->Size.x)
 			{
-				Paddle ->Position.x += velocity;
+				Paddle->Position.x += velocity;
 				if (BallObject->IsStuck)
 					BallObject->Position.x += velocity;
 			}
@@ -105,6 +113,13 @@ void Game::Update(float deltaTime)
 
 	ParticleGen->Update(deltaTime, *BallObject, 2, glm::vec2(BallObject->Radius / 2));
 
+	if (ShakeTime > 0.0f)
+	{
+		ShakeTime -= deltaTime;
+		if (ShakeTime <= 0.0f)
+			Effects->Shake = false;
+	}
+
 	if (BallObject->Position.y >= Height)
 	{
 		this->ResetLevel();
@@ -116,25 +131,27 @@ void Game::Render()
 {
 	if (State == GameState::GAME_ACTIVE)
 	{
-		Renderer->DrawSprite(ResourceManager::GetTexture("background"), glm::vec2(0, 0), glm::vec2(this->Width, this->Height), 0.0f);
-		
-		Levels[CurrentLevel].Draw(*Renderer);
-		
-		Paddle->Draw(*Renderer);
+		Effects->BeginRender();
 
-		ParticleGen->Draw();
+			Renderer->DrawSprite(ResourceManager::GetTexture("background"), glm::vec2(0, 0), glm::vec2(this->Width, this->Height), 0.0f);
+			Levels[CurrentLevel].Draw(*Renderer);
+			Paddle->Draw(*Renderer);
+			ParticleGen->Draw();
+			BallObject->Draw(*Renderer);
 
-		BallObject->Draw(*Renderer);
+		Effects->EndRender();
+
+		Effects->Render(glfwGetTime());
 	}
 }
 
 bool Game::CheckCollision(GameObject obj1, GameObject obj2)
 {
 	bool collisionX = obj1.Position.x + obj1.Size.x >= obj2.Position.x &&
-					  obj2.Position.x + obj2.Size.x >= obj1.Position.x;
+		obj2.Position.x + obj2.Size.x >= obj1.Position.x;
 
 	bool collisionY = obj1.Position.y + obj1.Size.y >= obj2.Position.y &&
-					  obj2.Position.y + obj2.Size.y >= obj1.Position.y;
+		obj2.Position.y + obj2.Size.y >= obj1.Position.y;
 
 	return collisionX && collisionY;
 }
@@ -145,7 +162,7 @@ Collision Game::CheckCollision(Ball obj1, GameObject obj2)
 
 	glm::vec2 AABBHalfExtents(obj2.Size.x / 2, obj2.Size.y / 2);
 	glm::vec2 AABBCenter(obj2.Position.x + AABBHalfExtents.x,
-						 obj2.Position.y + AABBHalfExtents.y);
+		obj2.Position.y + AABBHalfExtents.y);
 
 	glm::vec2 difference = centerPoint - AABBCenter;
 	glm::vec2 clamped = glm::clamp(difference, -AABBHalfExtents, AABBHalfExtents);
@@ -153,7 +170,7 @@ Collision Game::CheckCollision(Ball obj1, GameObject obj2)
 
 	difference = closest - centerPoint;
 
-	if (glm::length(difference) < obj1.Radius) 
+	if (glm::length(difference) < obj1.Radius)
 		return std::make_tuple(true, GetDirection(difference), difference);
 	else
 		return std::make_tuple(false, MoveDirection::UP, glm::vec2(0, 0));
@@ -166,31 +183,38 @@ void Game::OnCollisionEnter()
 		if (!brick.IsDestroyed)
 		{
 			Collision collision = CheckCollision(*BallObject, brick);
-			if (std::get<0>(collision)) 
+			if (std::get<0>(collision))
 			{
 				if (!brick.IsSolid)
+				{
 					brick.IsDestroyed = true;
+				}
+				else
+				{
+					ShakeTime = 0.05f;
+					Effects->Shake = true;
+				}
 
 				MoveDirection direction = std::get<1>(collision);
 				glm::vec2 diff_vector = std::get<2>(collision);
-				if (direction == MoveDirection::LEFT || direction == MoveDirection::RIGHT) 
+				if (direction == MoveDirection::LEFT || direction == MoveDirection::RIGHT)
 				{
-					BallObject->Velocity.x = -BallObject->Velocity.x; 
+					BallObject->Velocity.x = -BallObject->Velocity.x;
 					GLfloat penetration = BallObject->Radius - std::abs(diff_vector.x);
 					if (direction == MoveDirection::LEFT)
-						BallObject->Position.x += penetration; 
+						BallObject->Position.x += penetration;
 					else
-						BallObject->Position.x -= penetration; 
+						BallObject->Position.x -= penetration;
 				}
-				else 
+				else
 				{
-					BallObject->Velocity.y = -BallObject->Velocity.y; 
+					BallObject->Velocity.y = -BallObject->Velocity.y;
 					float penetration = BallObject->Radius - std::abs(diff_vector.y);
 
 					if (direction == MoveDirection::UP)
-						BallObject->Position.y -= penetration; 
+						BallObject->Position.y -= penetration;
 					else
-						BallObject->Position.y += penetration; 
+						BallObject->Position.y += penetration;
 				}
 			}
 
@@ -200,12 +224,12 @@ void Game::OnCollisionEnter()
 				float centerBoard = Paddle->Position.x + Paddle->Size.x / 2;
 				float distance = (BallObject->Position.x + BallObject->Radius) - centerBoard;
 				float percentage = distance / (Paddle->Size.x / 2);
-				
+
 				float strength = 2.0f;
 				glm::vec2 oldVelocity = BallObject->Velocity;
 				BallObject->Velocity.x = BALL_VELOCITY.x * percentage * strength;
-				BallObject->Velocity = glm::normalize(BallObject->Velocity) * glm::length(oldVelocity); 
-				
+				BallObject->Velocity = glm::normalize(BallObject->Velocity) * glm::length(oldVelocity);
+
 				BallObject->Velocity.y = -1 * abs(BallObject->Velocity.y);
 			}
 		}

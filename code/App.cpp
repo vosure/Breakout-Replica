@@ -4,7 +4,7 @@
 #include "core/Game.h"
 #include "core/utils/ResourceManager.h"
 
-const unsigned int SCREEN_WIDTH = 800, SCREEN_HEIGHT = 600;
+const unsigned int SCREEN_WIDTH = 1280, SCREEN_HEIGHT = 720;
 Game Breakout(SCREEN_WIDTH, SCREEN_HEIGHT);
 
 
@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
 		Breakout.ProcessInput(deltaTime);
 		Breakout.Update(deltaTime);
 
-		glClearColor(0.0f, 1.0f, 1.0f, 1.0f);
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 		Breakout.Render();
 

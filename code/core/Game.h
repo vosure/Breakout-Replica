@@ -5,6 +5,7 @@
 
 #include "level/GameLevel.h"
 #include "particles/ParticleGenerator.h"
+#include "post_processing/PostProcessor.h"
 #include "renderer/Ball.h"
 
 #include <vector>
@@ -49,6 +50,8 @@ public:
 	void ProcessInput(float deltaTime);
 	void Update(float deltaTime);
 	void Render();
+
+private:
 
 private:
 	bool CheckCollision(GameObject obj1, GameObject obj2);
