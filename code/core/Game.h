@@ -5,11 +5,13 @@
 
 #include "level/GameLevel.h"
 #include "particles/ParticleGenerator.h"
-#include "post_processing/PostProcessor.h"
-#include "renderer/Ball.h"
+#include "effects/PostProcessor.h"
+#include "game_objects/Ball.h"
+#include "game_objects/PowerUp.h"
 
 #include <vector>
 #include <tuple>
+#include <algorithm>
 
 const glm::vec2 PADDLE_SIZE(100, 20);
 const float PADDLE_VELOCITY(500.0f);
@@ -42,6 +44,8 @@ public:
 	std::vector<GameLevel> Levels;
 	unsigned int CurrentLevel;
 
+	std::vector<PowerUp> PowerUps;
+
 public:
 	Game(unsigned int width, unsigned int height);
 	~Game();
@@ -50,6 +54,9 @@ public:
 	void ProcessInput(float deltaTime);
 	void Update(float deltaTime);
 	void Render();
+
+	void SpawnPowerUp(GameObject &brick);
+	void UpdatePowerUp(float deltaTime);
 
 private:
 
@@ -63,4 +70,8 @@ private:
 	void ResetPaddle();
 
 	MoveDirection GetDirection(glm::vec2 target);
+
+	bool PowerUpShouldSpawn(unsigned int chance);
+	void ActivatePowerUp(PowerUp &powerUp);
+	bool IsPowerUpActive(std::vector<PowerUp> &powerUps, const std::string &type);
 };

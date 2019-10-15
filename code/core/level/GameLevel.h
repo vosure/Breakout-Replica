@@ -3,7 +3,7 @@
 #include "GL/glew.h"
 #include "glm/glm.hpp"
 
-#include "../renderer/GameObject.h"
+#include "../game_objects/GameObject.h"
 #include "../utils/ResourceManager.h"
 
 #include <vector>

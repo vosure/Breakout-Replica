@@ -2,11 +2,15 @@
 
 #include "GameObject.h"
 
+
 class Ball : public GameObject
 {
 public:
 	float Radius;
 	bool IsStuck;
+
+	bool Sticky;
+	bool PassThrough;
 
 public:
 	Ball();
