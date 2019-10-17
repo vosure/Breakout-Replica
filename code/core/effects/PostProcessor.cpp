@@ -87,11 +87,6 @@ void PostProcessor::Render(float deltaTime)
 	glBindVertexArray(0);
 }
 
-void PostProcessor::Print()
-{
-	std::cout << "qwe" << std::endl;
-}
-
 void PostProcessor::Init()
 {
 	unsigned int VBO;

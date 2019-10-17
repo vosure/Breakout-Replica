@@ -5,10 +5,12 @@ SpriteRenderer *Renderer;
 GameObject *Paddle;
 Ball *BallObject;
 ParticleGenerator *ParticleGen;
+ISoundEngine *SoundEngine = createIrrKlangDevice();
+TextRenderer *Text;
 float ShakeTime = 0.0f;
 
 Game::Game(unsigned int width, unsigned int height)
-	: State(GameState::GAME_ACTIVE), Keys(), Width(width), Height(height)
+	: State(GameState::GAME_MENU), Keys(), Width(width), Height(height), CurrentLevel(0), Lives(3)
 {
 }
 
@@ -19,6 +21,7 @@ Game::~Game()
 	delete BallObject;
 	delete ParticleGen;
 	delete Effects;
+	SoundEngine->drop();
 }
 
 void Game::Init()
@@ -54,7 +57,6 @@ void Game::Init()
 	Renderer = new SpriteRenderer(ResourceManager::GetShader("sprite"));
 	ParticleGen = new ParticleGenerator(ResourceManager::GetShader("particle"), ResourceManager::GetTexture("particle"), 1000);
 	Effects = new PostProcessor(ResourceManager::GetShader("postProcessing"), Width, Height);
-	Effects->Print();
 
 	GameLevel one;
 	GameLevel two;
@@ -71,17 +73,55 @@ void Game::Init()
 	Levels.push_back(three);
 	Levels.push_back(four);
 
-	CurrentLevel = 2;
+	CurrentLevel = 0;
 
 	glm::vec2 paddlePosition = glm::vec2(Width / 2 - PADDLE_SIZE.x / 2, Height - PADDLE_SIZE.y);
 	Paddle = new GameObject(paddlePosition, PADDLE_SIZE, ResourceManager::GetTexture("paddle"));
 
 	glm::vec2 ballPosition = paddlePosition + glm::vec2(PADDLE_SIZE.x / 2 - BALL_RADIUS, -BALL_RADIUS * 2);
 	BallObject = new Ball(ballPosition, BALL_RADIUS, BALL_VELOCITY, ResourceManager::GetTexture("ball"));
+
+	SoundEngine->play2D("resources/audio/breakout.mp3", true);
+
+	Text = new TextRenderer(Width, Height);
+	Text->Load("resources/fonts/DroidSans.ttf", 24);
 }
 
 void Game::ProcessInput(float deltaTime)
 {
+	if (State == GameState::GAME_MENU)
+	{
+		if (Keys[GLFW_KEY_ENTER] && !KeysProcessed[GLFW_KEY_ENTER])
+		{
+			State = GameState::GAME_ACTIVE;
+			KeysProcessed[GLFW_KEY_ENTER] = true;
+		}
+		if (Keys[GLFW_KEY_W] && !KeysProcessed[GLFW_KEY_W])
+		{
+			CurrentLevel = (CurrentLevel + 1) % 4;
+			KeysProcessed[GLFW_KEY_W] = true;
+		}
+		if (Keys[GLFW_KEY_S] && !KeysProcessed[GLFW_KEY_S])
+		{
+			if (CurrentLevel > 0)
+				--CurrentLevel;
+			else
+				CurrentLevel = 3;
+
+			KeysProcessed[GLFW_KEY_S] = true;
+		}
+	}
+
+	if (State == GameState::GAME_WIN)
+	{
+		if (Keys[GLFW_KEY_ENTER])
+		{
+			KeysProcessed[GLFW_KEY_ENTER] = true;
+			Effects->Chaos = false;
+			State = GameState::GAME_MENU;
+		}
+	}
+
 	if (State == GameState::GAME_ACTIVE)
 	{
 		GLfloat velocity = PADDLE_VELOCITY * deltaTime;
@@ -130,14 +170,27 @@ void Game::Update(float deltaTime)
 
 	if (BallObject->Position.y >= Height)
 	{
-		this->ResetLevel();
-		this->ResetPaddle();
+		--Lives;
+		if (Lives == 0)
+		{
+			ResetLevel();
+			State = GameState::GAME_MENU;
+		}
+		ResetPaddle();
+	}
+
+	if (State == GameState::GAME_ACTIVE && Levels[CurrentLevel].IsCompleted())
+	{
+		ResetLevel();
+		ResetPaddle();
+		Effects->Chaos = true;
+		State = GameState::GAME_WIN;
 	}
 }
 
 void Game::Render()
 {
-	if (State == GameState::GAME_ACTIVE)
+	if (State == GameState::GAME_ACTIVE || State == GameState::GAME_MENU || State == GameState::GAME_WIN)
 	{
 		Effects->BeginRender();
 
@@ -155,6 +208,21 @@ void Game::Render()
 		Effects->EndRender();
 
 		Effects->Render(glfwGetTime());
+
+		std::stringstream ss;
+		ss << Lives;
+		Text->Render("Lives :" + ss.str(), 5.0f, 5.0f, 1.0f);
+	}
+
+	if (State == GameState::GAME_MENU)
+	{
+		Text->Render("Press ENTER to start", 250.0f, Height / 2, 1.0f);
+		Text->Render("Press W or S to select level", 245.0f, Height / 2 + 20.0f, 0.75f);
+	}
+	if (State == GameState::GAME_WIN)
+	{
+		Text->Render("You WON!!!", 320.0f, Height / 2 - 20.0f, 1.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+		Text->Render("Press ENTER to retry or ESC to quit", 130.0f, Height / 2, 1.0f, glm::vec3(1.0f, 1.0f, 0.0f));
 	}
 }
 
@@ -270,11 +338,13 @@ void Game::OnCollisionEnter()
 				{
 					brick.IsDestroyed = true;
 					SpawnPowerUp(brick);
+					SoundEngine->play2D("resources/audio/bleep.mp3", false);
 				}
 				else
 				{
 					ShakeTime = 0.05f;
 					Effects->Shake = true;
+					SoundEngine->play2D("resources/audio/solid.wav", false);
 				}
 
 				MoveDirection direction = std::get<1>(collision);
@@ -315,6 +385,7 @@ void Game::OnCollisionEnter()
 						ActivatePowerUp(powerUp);
 						powerUp.IsDestroyed = true;
 						powerUp.IsActivated = true;
+						SoundEngine->play2D("resources/audio/powerup.wav", false);
 					}
 				}
 			}
@@ -334,6 +405,8 @@ void Game::OnCollisionEnter()
 				BallObject->Velocity.y = -1 * abs(BallObject->Velocity.y);
 
 				BallObject->IsStuck = BallObject->Sticky;
+
+				SoundEngine->play2D("resources/audio/bleep.wav", false);
 			}
 		}
 	}
@@ -341,6 +414,7 @@ void Game::OnCollisionEnter()
 
 void Game::ResetLevel()
 {
+	Lives = 3;
 	if (CurrentLevel == 0)
 		Levels[0].Load("resources/levels/one.lvl", Width, Height * 0.5f);
 	else if (CurrentLevel == 1)

@@ -2,12 +2,14 @@
 
 #include "GL/glew.h"
 #include "GLFW/glfw3.h"
+#include "irrKlang.h"
 
 #include "level/GameLevel.h"
 #include "particles/ParticleGenerator.h"
 #include "effects/PostProcessor.h"
 #include "game_objects/Ball.h"
 #include "game_objects/PowerUp.h"
+#include "text/TextRenderer.h"
 
 #include <vector>
 #include <tuple>
@@ -18,6 +20,8 @@ const float PADDLE_VELOCITY(500.0f);
 
 const glm::vec2 BALL_VELOCITY(100.0f, -350.0f);
 const float BALL_RADIUS(12.5f);
+
+using namespace irrklang;
 
 enum class GameState
 {
@@ -38,6 +42,7 @@ class Game
 public:
 	GameState State;
 	bool Keys[1024];
+	bool KeysProcessed[1024];
 	unsigned int Width;
 	unsigned int Height;
 
@@ -45,6 +50,8 @@ public:
 	unsigned int CurrentLevel;
 
 	std::vector<PowerUp> PowerUps;
+
+	unsigned int Lives;
 
 public:
 	Game(unsigned int width, unsigned int height);

@@ -121,7 +121,7 @@ void Shader::SetVec4(const char *name, float x, float y, float z, float w, bool 
 	glUniform4f(glGetUniformLocation(ID, name), x, y, z, w);
 }
 
-void Shader::SetMat4(const char *name, glm::mat4 &matrix, bool useShader)
+void Shader::SetMat4(const char *name, const glm::mat4 &matrix, bool useShader)
 {
 	if (useShader)
 	{

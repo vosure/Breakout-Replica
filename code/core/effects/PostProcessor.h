@@ -23,7 +23,6 @@ public:
 	void BeginRender();
 	void EndRender();
 	void Render(float deltaTime);
-	void Print();
 
 private:
 	unsigned int MSFBO;
